@@ -1,18 +1,22 @@
-"""create-initial-tables
+"""_v0_4_0
 
-Revision ID: 03d259000eac
+Revision ID: c11109a5163f
 Revises: 
-Create Date: 2020-03-26 12:38:00.383917
+Create Date: 2020-11-10 09:26:11.512305
 
 """
 from alembic import op
 import sqlalchemy as sa
 
+from sqlalchemy.orm.session import Session
+from lccs_db.models import LucClass, LucClassificationSystem, ClassesView
+
+
 
 # revision identifiers, used by Alembic.
-revision = '03d259000eac'
+revision = 'e8b12ba52665'
 down_revision = None
-branch_labels = ('default',)
+branch_labels = ('lccs',)
 depends_on = None
 
 
@@ -26,7 +30,7 @@ def upgrade():
     sa.Column('authority_name', sa.Text(), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('version', sa.Text(), nullable=True),
-    sa.PrimaryKeyConstraint('id'),
+    sa.PrimaryKeyConstraint('id', name=op.f('class_systems_pkey')),
     schema='lccs'
     )
     op.create_table('style_formats',
@@ -34,7 +38,7 @@ def upgrade():
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('name', sa.Text(), nullable=False),
-    sa.PrimaryKeyConstraint('id'),
+    sa.PrimaryKeyConstraint('id', name=op.f('style_formats_pkey')),
     schema='lccs'
     )
     op.create_table('classes',
@@ -46,9 +50,9 @@ def upgrade():
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('class_system_id', sa.Integer(), nullable=False),
     sa.Column('class_parent_id', sa.Integer(), nullable=True),
-    sa.ForeignKeyConstraint(['class_parent_id'], ['lccs.classes.id'], ondelete='NO ACTION'),
-    sa.ForeignKeyConstraint(['class_system_id'], ['lccs.class_systems.id'], ondelete='NO ACTION'),
-    sa.PrimaryKeyConstraint('id'),
+    sa.ForeignKeyConstraint(['class_parent_id'], ['lccs.classes.id'], name=op.f('classes_class_parent_id_classes_fkey'), ondelete='NO ACTION'),
+    sa.ForeignKeyConstraint(['class_system_id'], ['lccs.class_systems.id'], name=op.f('classes_class_system_id_class_systems_fkey'), ondelete='NO ACTION'),
+    sa.PrimaryKeyConstraint('id', name=op.f('classes_pkey')),
     schema='lccs'
     )
     op.create_table('styles',
@@ -57,9 +61,9 @@ def upgrade():
     sa.Column('class_system_id', sa.Integer(), nullable=False),
     sa.Column('style_format_id', sa.Integer(), nullable=False),
     sa.Column('style', sa.JSON(), nullable=True),
-    sa.ForeignKeyConstraint(['class_system_id'], ['lccs.class_systems.id'], ondelete='NO ACTION'),
-    sa.ForeignKeyConstraint(['style_format_id'], ['lccs.style_formats.id'], ondelete='NO ACTION'),
-    sa.PrimaryKeyConstraint('class_system_id', 'style_format_id'),
+    sa.ForeignKeyConstraint(['class_system_id'], ['lccs.class_systems.id'], name=op.f('styles_class_system_id_class_systems_fkey'), ondelete='NO ACTION'),
+    sa.ForeignKeyConstraint(['style_format_id'], ['lccs.style_formats.id'], name=op.f('styles_style_format_id_style_formats_fkey'), ondelete='NO ACTION'),
+    sa.PrimaryKeyConstraint('class_system_id', 'style_format_id', name=op.f('styles_pkey')),
     schema='lccs'
     )
     op.create_table('class_mappings',
@@ -69,11 +73,23 @@ def upgrade():
     sa.Column('target_class_id', sa.Integer(), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('degree_of_similarity', sa.Numeric(), nullable=True),
-    sa.ForeignKeyConstraint(['source_class_id'], ['lccs.classes.id'], ondelete='NO ACTION'),
-    sa.ForeignKeyConstraint(['target_class_id'], ['lccs.classes.id'], ondelete='NO ACTION'),
-    sa.PrimaryKeyConstraint('source_class_id', 'target_class_id'),
+    sa.ForeignKeyConstraint(['source_class_id'], ['lccs.classes.id'], name=op.f('class_mappings_source_class_id_classes_fkey'), ondelete='NO ACTION'),
+    sa.ForeignKeyConstraint(['target_class_id'], ['lccs.classes.id'], name=op.f('class_mappings_target_class_id_classes_fkey'), ondelete='NO ACTION'),
+    sa.PrimaryKeyConstraint('source_class_id', 'target_class_id', name=op.f('class_mappings_pkey')),
     schema='lccs'
     )
+    session = Session(bind=op.get_bind())
+    session.execute("CREATE OR REPLACE VIEW {} AS " \
+    "SELECT classes.id, classes.name, classes.description, classes.code, " \
+    "class_systems.name  AS class_system_name, " \
+    "parent_class.name AS class_parent_name " \
+    "FROM {} AS classes " \
+    "JOIN {} AS class_systems ON class_systems.id = classes.class_system_id " \
+    "LEFT OUTER JOIN {} AS parent_class ON classes.class_parent_id = parent_class.id;".format( ClassesView.__table__, LucClass.__table__,
+                                                        LucClassificationSystem.__table__, LucClass.__table__)
+
+    )
+    session.commit()
     # ### end Alembic commands ###
 
 
@@ -84,4 +100,8 @@ def downgrade():
     op.drop_table('classes', schema='lccs')
     op.drop_table('style_formats', schema='lccs')
     op.drop_table('class_systems', schema='lccs')
+
+    session = Session(bind=op.get_bind())
+    session.execute('DROP VIEW {};'.format(ClassesView.__table__))
+    session.commit()
     # ### end Alembic commands ###
