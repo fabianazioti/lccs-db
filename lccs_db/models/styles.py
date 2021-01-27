@@ -22,9 +22,11 @@ class Styles(BaseModel):
     __tablename__ = 'styles'
 
     class_system_id = Column(Integer, ForeignKey('{}.class_systems.id'.format(Config.LCC_ACTIVE_SCHEMA),
-                                                 ondelete='NO ACTION'), nullable=False, primary_key=True)
+                                                 onupdate='CASCADE', ondelete='CASCADE'), nullable=False,
+                             primary_key=True)
     style_format_id = Column(Integer, ForeignKey('{}.style_formats.id'.format(Config.LCC_ACTIVE_SCHEMA),
-                                                 ondelete='NO ACTION'), nullable=False, primary_key=True)
+                                                 onupdate='CASCADE', ondelete='CASCADE'), nullable=False,
+                             primary_key=True)
 
     style = Column(JSON, nullable=True)
 
